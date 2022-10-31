@@ -3,13 +3,7 @@ from torch import nn
 from torch.nn import utils
 
 
-# Clamped L1 loss from DeepSDF paper
-def sdf_loss(pred, gt, delta=0.1):
-    pred = torch.clamp(pred, -delta, delta)
-    gt = torch.clamp(gt, -delta, delta)
-    return torch.mean(torch.abs(pred - gt))
-
-
+# DeepSDF network
 class DeepSDF(nn.Module):
     def __init__(self, num_layers=8, hidden_dim=512, use_weight_norm=True,
                  use_dropout=True, dropout_prob=0.2):
@@ -50,7 +44,7 @@ class DeepSDF(nn.Module):
         for i, inter_layer in enumerate(self.inter_fc):
             out = self.activation(inter_layer(out))
             if i == self.skip_layer:
-                out = torch.cat([out, coords], dim=1)  # [B, H - 3] -> [B, H]
+                out = torch.cat([out, coords], dim=-1)  # [B, H - 3] -> [B, H]
 
         out = self.last_fc(out)  # [B, 1]
         out = torch.tanh(out)

@@ -52,7 +52,7 @@ def sample_training_pts(pc_points, num_samples):
     return sampled_pc
 
 
-# Get the SDF of each point in sample_pts using the closest point in the point cloud and
+# Get the sdf of each point in sample_pts using the closest point in the point cloud and
 # its normal vector.
 def get_sdf(pc_pts, pc_normals, sample_pts):
     # For each sampled point, find the closest pc point and its normal vector
@@ -63,8 +63,8 @@ def get_sdf(pc_pts, pc_normals, sample_pts):
 
     # Using that info, calculate the point-to-plane distance
     dist = closest_normals * (sample_pts - closest_pts)
-    dist = np.sum(dist, axis=1)
-    return dist
+    sdf = np.sum(dist, axis=1)
+    return sdf
 
 
 # Given a path to a mesh file, get the sampled 3D point coordinates and their SDF values.
@@ -89,7 +89,7 @@ def to_tensor(x):
     return torch.from_numpy(x).float().to(device)
 
 
-class SDFDataset(Dataset):
+class PointsDataset(Dataset):
     def __init__(self, mesh_path, num_samples):
         train_data = get_training_data(mesh_path, num_samples)
         self.pts = to_tensor(train_data['pts'])
