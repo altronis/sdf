@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import utils
 
+from render import render
 
 # DeepSDF network
 class DeepSDF(nn.Module):
@@ -37,7 +38,7 @@ class DeepSDF(nn.Module):
         for i, layer in enumerate(self.inter_fc):
             self.inter_fc[i] = utils.weight_norm(layer)
 
-    def forward(self, coords):
+    def forward(self, coords, use_clip: bool):
         # coords: 3D point coordinates. [B, 3]
         out = self.activation(self.first_fc(coords))  # [B, H]
 
@@ -48,4 +49,7 @@ class DeepSDF(nn.Module):
 
         out = self.last_fc(out)  # [B, 1]
         out = torch.tanh(out)
+
+        if use_clip:
+            out = render(out)
         return out
