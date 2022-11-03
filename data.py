@@ -107,8 +107,8 @@ def to_tensor(x):
 
 
 class PointsDataset(Dataset):
-    def __init__(self, mesh_path, num_samples):
-        train_data = get_training_data(mesh_path, num_samples)
+    def __init__(self, num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
+        train_data = get_training_data(num_samples, points_path, normals_path, mesh_path, source)
         self.pts = to_tensor(train_data['pts'])
         self.sdf = to_tensor(train_data['sdf'])
 

@@ -69,7 +69,7 @@ if __name__ == '__main__':
     mesh_path = args.mesh_directory + args.mesh_file_name
     output_directory = args.output_directory
 
-    objs = bproc.loader.load_obj("./models/model_normalized.obj")
+    objs = bproc.loader.load_obj(mesh_path)
 
     intrinsics = np.array([[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]])
     bproc.camera.set_intrinsics_from_K_matrix(intrinsics, width, height)

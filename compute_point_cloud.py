@@ -56,7 +56,9 @@ if __name__ == '__main__':
     colors = colors[valid] #  (# of valid, 3)
     normals = normals.reshape(-1, 3) # (height, width, 3) -> (height*width, 3)
     normals = normals[valid] #  (# of valid, 3)
-
+    normals = (normals - 0.5) * 2
+    # TODO: valid
+    normals[:, 2] = -normals[:, 2]
     pc = unproject_points(torch.tensor(uv), torch.tensor(depth), torch.tensor(intrinsics)).numpy()
 
     os.system('mkdir -p ' + output_directory)
