@@ -26,9 +26,9 @@ def clip_loss(input_image, clip_model, clip_preprocess, text_sentences: list, de
 
 if __name__ == '__main__':
     text_sentences = ['an airplane', 'a photo of an airplane']
-
+    points_path, normals_path = './output/point_cloud.npy', './output/normals.npy'
     mesh_path = 'bunny.obj'
-    train_data = PointsDataset(mesh_path, config.num_samples)
+    train_data = PointsDataset(config.num_samples, points_path, normals_path, mesh_path=None, source='file')
     train_loader = DataLoader(train_data, batch_size=config.batch_size, shuffle=True)
 
     model = DeepSDF(use_dropout=config.use_dropout)
