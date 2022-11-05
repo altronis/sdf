@@ -71,7 +71,6 @@ def get_pc_points_and_normals_from_mesh(mesh_path):
     mesh = trimesh.load(mesh_path)
     pc_points = mesh.vertices
     pc_points = normalize_pc(pc_points)
-
     pc_normals = mesh.vertex_normals
     return pc_points, pc_normals
 
@@ -83,14 +82,8 @@ def get_pc_points_and_normals_from_files(points_path, normals_path):
         pc_normals = np.load(f)
     return pc_points, pc_normals
 
-# Given path(s) to mesh or pc & normals data files, get the sampled 3D point coordinates and their SDF values.
-def get_training_data(num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
-    if points_path is not None and normals_path is not None and source == 'file':
-        pc_points, pc_normals = get_pc_points_and_normals_from_files(points_path, normals_path)
-    elif mesh_path is not None and source == 'mesh':
-        pc_points, pc_normals = get_pc_points_and_normals_from_mesh(mesh_path)
-    else:
-        raise ValueError('get_training_data function has wrong error')
+# Given number of samples pc & normals, get the sampled 3D point coordinates and their SDF values.
+def get_training_data(num_samples, pc_points, pc_normals):
     sample_pts = sample_training_pts(pc_points, num_samples)
     sdf = get_sdf(pc_points, pc_normals, sample_pts)
 
@@ -107,8 +100,8 @@ def to_tensor(x):
 
 
 class PointsDataset(Dataset):
-    def __init__(self, num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
-        train_data = get_training_data(num_samples, points_path, normals_path, mesh_path, source)
+    def __init__(self, num_samples, pc_points, pc_normals):
+        train_data = get_training_data(num_samples, pc_points, pc_normals)
         self.pts = to_tensor(train_data['pts'])
         self.sdf = to_tensor(train_data['sdf'])
 

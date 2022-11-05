@@ -8,43 +8,37 @@
 import numpy as np
 from kornia.geometry.camera.perspective import unproject_points
 import argparse
-import h5py
-import pickle
 import torch
-import os
+
+from tools import load_info_dict, load_hdf5, save_numpy
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_directory", type=str, default='./output/')
-    parser.add_argument("--output_directory", type=str, default='./output/')
+    parser.add_argument("--input_directory", type=str, default='./bproc_render_output')
+    parser.add_argument("--output_directory", type=str, default='./bproc_render_output')
     parser.add_argument("--depth_threshold", type=int, default=10000)
     parser.add_argument("--hdf5_filename", type=str, default='0.hdf5')
-    parser.add_argument("--info_filename", type=str, default='info.pkl')
+    parser.add_argument("--info_dict_filename", type=str, default='info_dict.pkl')
     parser.add_argument("--output_colors", type=bool, default=False)
     parser.add_argument("--output_normals", type=bool, default=True)
-
+    parser.add_argument("--point_cloud_filename", type=str, default='point_cloud.npy')
+    parser.add_argument("--normals_filename", type=str, default='normals.npy')
+    parser.add_argument("--colors_filename", type=str, default='colors.npy')
     args = parser.parse_args()
 
     input_directory = args.input_directory
     output_directory = args.output_directory
     depth_threshold = args.depth_threshold
     hdf5_filename = args.hdf5_filename
-    info_filename = args.info_filename
+    info_dict_filename = args.info_dict_filename
     output_colors = args.output_colors
     output_normals = args.output_normals
+    point_cloud_filename = args.point_cloud_filename
+    normals_filename = args.normals_filename
+    colors_filename = args.colors_filename
 
-    with h5py.File(input_directory + hdf5_filename, "r") as data:
-        colors = np.array(data['colors'][:])
-        depth = np.array(data['depth'][:])
-        normals = np.array(data['normals'][:])
-
-    with open(input_directory + info_filename, 'rb') as f:
-        d = pickle.load(f)
-        intrinsics = d['intrinsics']
-        pose = d['pose']
-        angle = d['angle']
-        height = d['height']
-        width = d['width']
+    colors, depth, normals = load_hdf5(input_directory, hdf5_filename)
+    intrinsics, pose, angle, width, height = load_info_dict(input_directory, info_dict_filename)
 
     uv = np.arange(0, height*width, dtype=int).reshape((height, width))
     uv = np.concatenate([(uv % width).reshape(-1, 1), (uv // width).reshape(-1, 1)], axis=1) # (height*width, 2)
@@ -57,18 +51,14 @@ if __name__ == '__main__':
     normals = normals.reshape(-1, 3) # (height, width, 3) -> (height*width, 3)
     normals = normals[valid] #  (# of valid, 3)
     normals = (normals - 0.5) * 2
-    # TODO: valid
     normals[:, 1] = -normals[:, 1]
     normals[:, 2] = -normals[:, 2]
     pc = unproject_points(torch.tensor(uv), torch.tensor(depth), torch.tensor(intrinsics)).numpy()
 
-    os.system('mkdir -p ' + output_directory)
-
+    save_numpy(output_directory, point_cloud_filename, pc)
     with open(output_directory + 'point_cloud.npy', 'wb') as f:
         np.save(f, pc)
     if output_normals:
-        with open(output_directory + 'normals.npy', 'wb') as f:
-            np.save(f, normals)
+        save_numpy(output_directory, normals_filename, normals)
     if output_colors:
-        with open(output_directory + 'colors.npy', 'wb') as f:
-            np.save(f, colors)
+        save_numpy(output_directory, colors_filename, colors)
