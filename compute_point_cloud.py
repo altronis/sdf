@@ -58,6 +58,7 @@ if __name__ == '__main__':
     normals = normals[valid] #  (# of valid, 3)
     normals = (normals - 0.5) * 2
     # TODO: valid
+    normals[:, 1] = -normals[:, 1]
     normals[:, 2] = -normals[:, 2]
     pc = unproject_points(torch.tensor(uv), torch.tensor(depth), torch.tensor(intrinsics)).numpy()
 
