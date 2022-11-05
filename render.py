@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision
 import numpy as np
 
-from model import DeepSDF
+# from model import DeepSDF
 import sphere_tracing
 
 
@@ -108,10 +108,10 @@ def render(model):
     return image.squeeze()
 
 
-if __name__ == '__main__':
-    model = DeepSDF(use_dropout=False)
-    model.load_state_dict(torch.load('model.pth'))
-    model.cuda()
-    model.eval()
-    image = render(model)
-    torchvision.utils.save_image(image, f'out.png')
+# if __name__ == '__main__':
+#     model = DeepSDF(use_dropout=False)
+#     model.load_state_dict(torch.load('model.pth'))
+#     model.cuda()
+#     model.eval()
+#     image = render(model)
+#     torchvision.utils.save_image(image, f'out.png')

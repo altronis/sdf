@@ -66,14 +66,31 @@ def get_sdf(pc_pts, pc_normals, sample_pts):
     sdf = np.sum(dist, axis=1)
     return sdf
 
-
-# Given a path to a mesh file, get the sampled 3D point coordinates and their SDF values.
-def get_training_data(mesh_path, num_samples):
+# Given a path to a mesh file, get point cloud and its normals
+def get_pc_points_and_normals_from_mesh(mesh_path):
     mesh = trimesh.load(mesh_path)
     pc_points = mesh.vertices
     pc_points = normalize_pc(pc_points)
 
     pc_normals = mesh.vertex_normals
+    return pc_points, pc_normals
+
+# Given 2 paths to the point cloud and normal file, get point cloud and its normals
+def get_pc_points_and_normals_from_files(points_path, normals_path):
+    with open(points_path, 'rb') as f:
+        pc_points = np.load(f)
+    with open(normals_path, 'rb') as f:
+        pc_normals = np.load(f)
+    return pc_points, pc_normals
+
+# Given path(s) to mesh or pc & normals data files, get the sampled 3D point coordinates and their SDF values.
+def get_training_data(num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
+    if points_path is not None and normals_path is not None and source == 'file':
+        pc_points, pc_normals = get_pc_points_and_normals_from_files(points_path, normals_path)
+    elif mesh_path is not None and source == 'mesh':
+        pc_points, pc_normals = get_pc_points_and_normals_from_mesh(mesh_path)
+    else:
+        raise ValueError('get_training_data function has wrong error')
     sample_pts = sample_training_pts(pc_points, num_samples)
     sdf = get_sdf(pc_points, pc_normals, sample_pts)
 
@@ -90,8 +107,8 @@ def to_tensor(x):
 
 
 class PointsDataset(Dataset):
-    def __init__(self, mesh_path, num_samples):
-        train_data = get_training_data(mesh_path, num_samples)
+    def __init__(self, num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
+        train_data = get_training_data(num_samples, points_path, normals_path, mesh_path, source)
         self.pts = to_tensor(train_data['pts'])
         self.sdf = to_tensor(train_data['sdf'])
 
