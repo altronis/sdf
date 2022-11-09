@@ -1,21 +1,20 @@
+import clip
 import torch
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import torchvision.transforms as T
-import clip
-from PIL import Image
-import numpy as np
-import torchvision
+from torch.utils.data import DataLoader
 
 import config
 from data import PointsDataset
 from model import DeepSDF
-from render import render
+from render_sdf import render
+
 
 def sdf_loss(pred, gt):
-    # pred = torch.clamp(pred, -1, 1)
-    # gt = torch.clamp(gt, -1, 1)
+    pred = torch.clamp(pred, -1, 1)
+    gt = torch.clamp(gt, -1, 1)
     return F.mse_loss(pred, gt)
+
 
 def clip_loss(input_image, clip_model, clip_preprocess, text_sentences: list, device, func=torch.mean):
     transform = T.ToPILImage()
@@ -46,7 +45,7 @@ if __name__ == '__main__':
 
     # every 200 epoches, the first half don't use clip, the second half use
     # if_this_epoch_use_clip = lambda epoch: ((epoch % 102) > 2)
-    if_this_epoch_use_clip = lambda x: True
+    if_this_epoch_use_clip = lambda x: False
     model.to(device)
     model.train()
 
@@ -70,7 +69,7 @@ if __name__ == '__main__':
                 loss = clip_loss(image, clip_model, clip_preprocess, text_sentences, device)
                 loss.backward()
                 optim.step()
-            
+
             running_loss += loss.item()
             if i % config.log_interval == config.log_interval - 1:
                 print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / config.log_interval:.3f}')

@@ -5,13 +5,14 @@
 # usage: python ./compute_point_cloud.py [--input_directory] [--output_directory] 
 #        [--depth_threshold] [--hdf5_filename] [--info_filename] 
 #        [--output_colors] [--output_normals] 
-import numpy as np
-from kornia.geometry.camera.perspective import unproject_points
 import argparse
-import h5py
-import pickle
-import torch
 import os
+import pickle
+
+import h5py
+import numpy as np
+import torch
+from kornia.geometry.camera.perspective import unproject_points
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -46,16 +47,16 @@ if __name__ == '__main__':
         height = d['height']
         width = d['width']
 
-    uv = np.arange(0, height*width, dtype=int).reshape((height, width))
-    uv = np.concatenate([(uv % width).reshape(-1, 1), (uv // width).reshape(-1, 1)], axis=1) # (height*width, 2)
-    depth = depth.reshape(-1, 1) # (height, width(, 1)) -> (height*width, 1)
-    valid = depth[:, 0] < depth_threshold # (height*width,) 
-    uv = uv[valid] # (# of valid, 2)
-    depth = depth[valid] # (# of valid, 1)
-    colors = colors.reshape(-1, 3) # (height, width, 3) -> (height*width, 3)
-    colors = colors[valid] #  (# of valid, 3)
-    normals = normals.reshape(-1, 3) # (height, width, 3) -> (height*width, 3)
-    normals = normals[valid] #  (# of valid, 3)
+    uv = np.arange(0, height * width, dtype=int).reshape((height, width))
+    uv = np.concatenate([(uv % width).reshape(-1, 1), (uv // width).reshape(-1, 1)], axis=1)  # (height*width, 2)
+    depth = depth.reshape(-1, 1)  # (height, width(, 1)) -> (height*width, 1)
+    valid = depth[:, 0] < depth_threshold  # (height*width,)
+    uv = uv[valid]  # (# of valid, 2)
+    depth = depth[valid]  # (# of valid, 1)
+    colors = colors.reshape(-1, 3)  # (height, width, 3) -> (height*width, 3)
+    colors = colors[valid]  # (# of valid, 3)
+    normals = normals.reshape(-1, 3)  # (height, width, 3) -> (height*width, 3)
+    normals = normals[valid]  # (# of valid, 3)
     normals = (normals - 0.5) * 2
     # TODO: valid
     normals[:, 2] = -normals[:, 2]

@@ -6,4 +6,4 @@ lr = 1e-4
 epochs = 5
 
 log_interval = 100
-res = 64  # Rendering resolution
+render_res = 256  # Rendering resolution

@@ -1,12 +1,14 @@
 import numpy as np
 import open3d as o3d
-import h5py
+
+
 def get_pc_points_and_normals_from_files(points_path, normals_path):
     with open(points_path, 'rb') as f:
         pc_points = np.load(f)
     with open(normals_path, 'rb') as f:
         pc_normals = np.load(f)
     return pc_points, pc_normals
+
 
 if __name__ == '__main__':
     points_path = './output/point_cloud.npy'

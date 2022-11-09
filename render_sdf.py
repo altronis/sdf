@@ -2,9 +2,12 @@ import torch
 import torch.nn as nn
 import torchvision
 import numpy as np
+import mcubes
+import open3d as o3d
 
-# from model import DeepSDF
+from model import DeepSDF
 import sphere_tracing
+import config
 
 
 def translation(sdf, t):
@@ -26,6 +29,34 @@ def compute_rotation_matrix(axes, angles):
     return rotation_matrices
 
 
+def to_mesh(model, res):
+    # Prepare 3D coordinates
+    space = np.linspace(-1, 1, res)
+    x, y, z = np.meshgrid(space, space, space)
+
+    x = x.reshape(-1, 1)
+    y = y.reshape(-1, 1)
+    z = z.reshape(-1, 1)
+    coords = np.concatenate((x, y, z), axis=1)
+
+    model.eval()
+    with torch.no_grad():
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        coords = torch.from_numpy(coords).float().to(device)
+        sdf = model(coords)
+
+    sdf = sdf.detach().cpu().numpy()
+    sdf = sdf.reshape((res, res, res))
+    vertices, triangles = mcubes.marching_cubes(sdf, 0)
+    return vertices, triangles
+
+
+def visualize_mesh(mesh_path):
+    mesh = o3d.io.read_triangle_mesh(mesh_path)
+    mesh.compute_vertex_normals()
+    o3d.visualization.draw_geometries([mesh])
+
+
 def render(model):
     device = torch.device("cuda")
     dtype = torch.float32
@@ -34,8 +65,8 @@ def render(model):
     convergence_threshold = 1e-3
 
     # ---------------- Intrinsic matrix ---------------- #
-    fx = fy = 256
-    cx = cy = 128
+    fx = fy = config.render_res
+    cx = cy = config.render_res // 2
     camera_matrix = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
 
     # ---------------- Camera position ---------------- #
@@ -108,10 +139,22 @@ def render(model):
     return image.squeeze()
 
 
-# if __name__ == '__main__':
-#     model = DeepSDF(use_dropout=False)
-#     model.load_state_dict(torch.load('model.pth'))
-#     model.cuda()
-#     model.eval()
-#     image = render(model)
-#     torchvision.utils.save_image(image, f'out.png')
+if __name__ == '__main__':
+    model = DeepSDF(use_dropout=False)
+    model.load_state_dict(torch.load('model.pth'))
+    model.cuda()
+    model.eval()
+
+    render_mode = 'mesh'  # 'sdf' or 'mesh'
+
+    # Differentiable SDF rendering (Sphere Tracing)
+    if render_mode == 'sdf':
+        image = render(model)
+        torchvision.utils.save_image(image, f'out.png')
+
+    # Render as mesh (for debugging)
+    else:
+        vertices, triangles = to_mesh(model, 64)
+        out_mesh_path = 'out.obj'
+        mcubes.export_obj(vertices, triangles, out_mesh_path)
+        visualize_mesh(out_mesh_path)

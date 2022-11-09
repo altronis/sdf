@@ -66,6 +66,7 @@ def get_sdf(pc_pts, pc_normals, sample_pts):
     sdf = np.sum(dist, axis=1)
     return sdf
 
+
 # Given a path to a mesh file, get point cloud and its normals
 def get_pc_points_and_normals_from_mesh(mesh_path):
     mesh = trimesh.load(mesh_path)
@@ -75,6 +76,7 @@ def get_pc_points_and_normals_from_mesh(mesh_path):
     pc_normals = mesh.vertex_normals
     return pc_points, pc_normals
 
+
 # Given 2 paths to the point cloud and normal file, get point cloud and its normals
 def get_pc_points_and_normals_from_files(points_path, normals_path):
     with open(points_path, 'rb') as f:
@@ -82,6 +84,7 @@ def get_pc_points_and_normals_from_files(points_path, normals_path):
     with open(normals_path, 'rb') as f:
         pc_normals = np.load(f)
     return pc_points, pc_normals
+
 
 # Given path(s) to mesh or pc & normals data files, get the sampled 3D point coordinates and their SDF values.
 def get_training_data(num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
