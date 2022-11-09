@@ -69,11 +69,10 @@ def get_sdf(pc_pts, pc_normals, sample_pts):
 
 # Given a path to a mesh file, get point cloud and its normals
 def get_pc_points_and_normals_from_mesh(mesh_path):
-    mesh = trimesh.load(mesh_path)
-    pc_points = mesh.vertices
+    mesh = trimesh.load(mesh_path, force='mesh')
+    pc_points, faces = mesh.sample(count=50000, return_index=True)
+    pc_normals = mesh.face_normals[faces]
     pc_points = normalize_pc(pc_points)
-
-    pc_normals = mesh.vertex_normals
     return pc_points, pc_normals
 
 
