@@ -1,4 +1,5 @@
 import numpy as np
+import open3d as o3d
 import torch
 import trimesh
 from sklearn.neighbors import NearestNeighbors
@@ -68,8 +69,7 @@ def get_sdf(pc_pts, pc_normals, sample_pts):
 
 
 # Given a path to a mesh file, get point cloud and its normals
-def get_pc_points_and_normals_from_mesh(mesh_path):
-    mesh = trimesh.load(mesh_path, force='mesh')
+def get_pc_points_and_normals_from_mesh(mesh):
     pc_points, faces = mesh.sample(count=50000, return_index=True)
     pc_normals = mesh.face_normals[faces]
     pc_points = normalize_pc(pc_points)
@@ -89,12 +89,17 @@ def get_pc_points_and_normals_from_files(points_path, normals_path):
 def get_training_data(num_samples, points_path=None, normals_path=None, mesh_path=None, source='file'):
     if points_path is not None and normals_path is not None and source == 'file':
         pc_points, pc_normals = get_pc_points_and_normals_from_files(points_path, normals_path)
+        sample_pts = sample_training_pts(pc_points, num_samples)
+        sdf = get_sdf(pc_points, pc_normals, sample_pts)
+
     elif mesh_path is not None and source == 'mesh':
-        pc_points, pc_normals = get_pc_points_and_normals_from_mesh(mesh_path)
+        mesh = trimesh.load(mesh_path, force='mesh')
+        pc_points, pc_normals = get_pc_points_and_normals_from_mesh(mesh)
+        sample_pts = sample_training_pts(pc_points, num_samples)
+        sdf = get_sdf(pc_points, pc_normals, sample_pts)
+
     else:
-        raise ValueError('get_training_data function has wrong error')
-    sample_pts = sample_training_pts(pc_points, num_samples)
-    sdf = get_sdf(pc_points, pc_normals, sample_pts)
+        raise ValueError("Invalid source parameter, must be either 'file' or 'mesh' ")
 
     train_data = {
         'pts': sample_pts,
