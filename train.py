@@ -5,6 +5,7 @@ import torchvision.transforms as T
 import clip
 import numpy as np
 import argparse
+import logging
 
 from data import PointsDataset
 from model import DeepSDF
@@ -28,13 +29,15 @@ def clip_loss(input_image, clip_model, clip_preprocess, text_sentences: list, de
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--learning_rate", type=float, default=0.0001)
     parser.add_argument("--learning_times_stage_1", type=int, default=20)
     parser.add_argument("--learning_times_stage_2", type=int, default=20)
     parser.add_argument("--output_loss_interval", type=int, default=100)
-    parser.add_argument("--cycle_number", type=int, default=20)
+    parser.add_argument("--cycle_number", type=int, default=200)
     parser.add_argument("--cycles_to_output_images", type=int, nargs='+', default=[0, -1])
     parser.add_argument("--use_dropout", type=bool, default=False)
     parser.add_argument("--categories", type=str, nargs='+', default=['plane', 'airplane'])
@@ -42,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument("--output_directory", type=str, default='./results')
     parser.add_argument("--point_cloud_filename", type=str, default='point_cloud.npy')
     parser.add_argument("--normals_filename", type=str, default='normals.npy')
-    parser.add_argument("--sample_rate", type=float, default=5, help='number of sample points over number of origin points')
+    parser.add_argument("--sample_rate", type=float, default=50, help='number of sample points over number of origin points')
     parser.add_argument("--sample_points", type=int, default=50000, help='number of sample points')
     parser.add_argument("--use_rate", type=bool, default=True, help='use rate(True) or points(False)')
 
@@ -107,16 +110,16 @@ if __name__ == '__main__':
                 loss.backward()
                 optim.step()
                 if i % output_loss_interval == 0:
-                    print(f'epoch: {epoch}, i: {i}, loss: {loss.item():.5f}')
+                    logging.info(f'epoch: {epoch}, i: {i}, loss: {loss.item():.5f}')
         else:
             intrinsics = generate_intrinsics(focal_x=256, focal_y=256, width=256, height=256)
-            image = render(model, intrinsics, distance=2.5, azimuth=np.pi/6, elevation=np.pi/8)
+            image = render(model, intrinsics, distance=2.5, azimuth=np.pi/6, elevation=np.pi/8, device=device)
             optim.zero_grad()
             if output_image:
                 save_image(output_directory, f'epoch_{epoch}.png', image)
             loss = clip_loss(image, clip_model, clip_preprocess, descriptions, device)
             loss.backward()
             optim.step()
-            print(f'epoch: {epoch}, loss: {loss.item():.5f}')
+            logging.info(f'epoch: {epoch}, loss: {loss.item():.5f}')
 
     torch.save(model.state_dict(), 'model.pth')

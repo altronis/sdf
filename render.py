@@ -5,7 +5,7 @@ import numpy as np
 
 from model import DeepSDF
 import sphere_tracing
-
+from tools import info_from_intrinsics
 
 def translation(sdf, t):
     def wrapper(p):
@@ -26,24 +26,23 @@ def compute_rotation_matrix(axes, angles):
     return rotation_matrices
 
 
-def render(model, intrinsics, distance, azimuth, elevation):
-    device = torch.device("cuda")
+def render(model, intrinsics, distance, azimuth, elevation, device):
     dtype = torch.float32
 
     num_iterations = 500
     convergence_threshold = 1e-3
 
     # ---------------- Intrinsic matrix ---------------- #
-    fx = fy = 256
-    cx = cy = 128
-    camera_matrix = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
-    # camera_matrix = intrinsics
-    # focal_x, focal_y, width, height = info_from_intrinsics(intrinsics)
+    # fx = fy = 256
+    # cx = cy = 128
+    # camera_matrix = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
+    camera_matrix = torch.from_numpy(intrinsics).to(device).type(dtype)
+    focal_x, focal_y, width, height = info_from_intrinsics(intrinsics)
 
     # ---------------- Camera position ---------------- #
-    # distance = 2.5
-    # azimuth = np.pi / 6
-    # elevation = np.pi / 8
+    distance = 2.5
+    azimuth = np.pi / 6
+    elevation = np.pi / 8
 
     camera_position = torch.tensor([
         +np.cos(elevation) * np.sin(azimuth),
@@ -53,6 +52,7 @@ def render(model, intrinsics, distance, azimuth, elevation):
 
     # ---------------- Camera rotation ---------------- #
     target_position = torch.tensor([0.0, -1.0, 0.0], device=device, dtype=dtype)
+    # target_position = torch.tensor([0.0, 0.0, 0.0], device=device, dtype=dtype)
     up_direction = torch.tensor([0.0, 1.0, 0.0], device=device, dtype=dtype)
 
     camera_z_axis = target_position - camera_position
@@ -65,8 +65,8 @@ def render(model, intrinsics, distance, azimuth, elevation):
     light_directions = torch.tensor([1.0, -0.5, 0.0], device=device, dtype=dtype)
 
     # ---------------- Ray marching ---------------- #
-    y_positions = torch.arange(cy * 2, dtype=camera_matrix.dtype, device=device)
-    x_positions = torch.arange(cx * 2, dtype=camera_matrix.dtype, device=device)
+    y_positions = torch.arange(height, dtype=camera_matrix.dtype, device=device)
+    x_positions = torch.arange(width, dtype=camera_matrix.dtype, device=device)
     y_positions, x_positions = torch.meshgrid(y_positions, x_positions, indexing='ij')
     z_positions = torch.ones_like(y_positions)
     ray_positions = torch.stack((x_positions, y_positions, z_positions), dim=-1)

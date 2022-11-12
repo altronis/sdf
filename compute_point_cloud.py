@@ -56,8 +56,6 @@ if __name__ == '__main__':
     pc = unproject_points(torch.tensor(uv), torch.tensor(depth), torch.tensor(intrinsics)).numpy()
 
     save_numpy(output_directory, point_cloud_filename, pc)
-    with open(output_directory + 'point_cloud.npy', 'wb') as f:
-        np.save(f, pc)
     if output_normals:
         save_numpy(output_directory, normals_filename, normals)
     if output_colors:
