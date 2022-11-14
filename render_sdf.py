@@ -1,32 +1,18 @@
+import mcubes
+import numpy as np
+import open3d as o3d
 import torch
 import torch.nn as nn
 import torchvision
-import numpy as np
-import mcubes
-import open3d as o3d
+from pytorch3d.implicitron.models.renderer.base import EvaluationMode, ImplicitFunctionWrapper
+from pytorch3d.implicitron.models.renderer.ray_tracing import RayTracing
+from pytorch3d.implicitron.models.renderer.rgb_net import RayNormalColoringNetwork
+from pytorch3d.implicitron.models.renderer.sdf_renderer import SignedDistanceFunctionRenderer
+from pytorch3d.renderer import MultinomialRaysampler
+from pytorch3d.renderer.cameras import look_at_view_transform, FoVPerspectiveCameras
 
-from model import DeepSDF
-import sphere_tracing
 import config
-
-
-def translation(sdf, t):
-    def wrapper(p):
-        d = sdf(p - t)
-        return d
-
-    return wrapper
-
-
-def compute_rotation_matrix(axes, angles):
-    nx, ny, nz = torch.unbind(axes, dim=-1)
-    c, s = torch.cos(angles), torch.sin(angles)
-    rotation_matrices = torch.stack([
-        torch.stack([nx * nx * (1.0 - c) + 1. * c, ny * nx * (1.0 - c) - nz * s, nz * nx * (1.0 - c) + ny * s], dim=-1),
-        torch.stack([nx * ny * (1.0 - c) + nz * s, ny * ny * (1.0 - c) + 1. * c, nz * ny * (1.0 - c) - nx * s], dim=-1),
-        torch.stack([nx * nz * (1.0 - c) - ny * s, ny * nz * (1.0 - c) + nx * s, nz * nz * (1.0 - c) + 1. * c], dim=-1),
-    ], dim=-2)
-    return rotation_matrices
+from model import DeepSDF
 
 
 def to_mesh(model, res):
@@ -57,99 +43,83 @@ def visualize_mesh(mesh_path):
     o3d.visualization.draw_geometries([mesh])
 
 
-def render(model):
-    device = torch.device("cuda")
-    dtype = torch.float32
+class ModelWrapper(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
 
-    num_iterations = 500
-    convergence_threshold = 1e-3
-
-    # ---------------- Intrinsic matrix ---------------- #
-    fx = fy = config.render_res
-    cx = cy = config.render_res // 2
-    camera_matrix = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
-
-    # ---------------- Camera position ---------------- #
-    distance = 2.5
-    azimuth = np.pi / 6
-    elevation = np.pi / 8
-
-    camera_position = torch.tensor([
-        +np.cos(elevation) * np.sin(azimuth),
-        -np.sin(elevation),
-        -np.cos(elevation) * np.cos(azimuth)
-    ], device=device, dtype=dtype) * distance
-
-    # ---------------- Camera rotation ---------------- #
-    target_position = torch.tensor([0.0, -1.0, 0.0], device=device, dtype=dtype)
-    up_direction = torch.tensor([0.0, 1.0, 0.0], device=device, dtype=dtype)
-
-    camera_z_axis = target_position - camera_position
-    camera_x_axis = torch.cross(up_direction, camera_z_axis, dim=-1)
-    camera_y_axis = torch.cross(camera_x_axis, camera_z_axis, dim=-1)
-    camera_rotation = torch.stack((camera_x_axis, camera_y_axis, camera_z_axis), dim=-1)
-    camera_rotation = nn.functional.normalize(camera_rotation, dim=-2)
-
-    # ---------------- Directional light ---------------- #
-    light_directions = torch.tensor([1.0, -0.5, 0.0], device=device, dtype=dtype)
-
-    # ---------------- Ray marching ---------------- #
-    y_positions = torch.arange(cy * 2, dtype=camera_matrix.dtype, device=device)
-    x_positions = torch.arange(cx * 2, dtype=camera_matrix.dtype, device=device)
-    y_positions, x_positions = torch.meshgrid(y_positions, x_positions, indexing='ij')
-    z_positions = torch.ones_like(y_positions)
-    ray_positions = torch.stack((x_positions, y_positions, z_positions), dim=-1)
-    ray_positions = torch.einsum('mn,...n->...m', torch.inverse(camera_matrix),  ray_positions)
-    ray_positions = torch.einsum('mn,...n->...m', camera_rotation, ray_positions) + camera_position
-    ray_directions = nn.functional.normalize(ray_positions - camera_position, dim=-1)
-
-    # ---------------- Rendering ---------------- #
-    sdf = translation(model, torch.tensor([0.0, -1.0, 0.0], device=device))
-
-    surface_positions, converged = sphere_tracing.sphere_tracing(
-        signed_distance_function=sdf,
-        ray_positions=ray_positions,
-        ray_directions=ray_directions,
-        num_iterations=num_iterations,
-        convergence_threshold=convergence_threshold,
-    )
-    surface_positions = torch.where(converged, surface_positions, torch.zeros_like(surface_positions))
-
-    surface_normals = sphere_tracing.compute_normal(
-        signed_distance_function=sdf,
-        surface_positions=surface_positions,
-    )
-    surface_normals = torch.where(converged, surface_normals, torch.zeros_like(surface_normals))
-
-    image = sphere_tracing.phong_shading(
-        surface_normals=surface_normals,
-        view_directions=camera_position - surface_positions,
-        light_directions=light_directions,
-        light_ambient_color=1.0,
-        light_diffuse_color=1.0,
-        light_specular_color=1.0,
-        material_ambient_color=0.2,
-        material_diffuse_color=0.7,
-        material_specular_color=0.1,
-        material_emission_color=0.0,
-        material_shininess=64.0,
-    )
-
-    image = torch.where(converged, image, torch.ones_like(image))
-    return image.squeeze()
+    def forward(self, **kwargs):
+        sdf = self.model(kwargs['rays_points_world'])
+        feats = torch.full((sdf.shape[0], 1), 0.5, device=sdf.device)
+        return torch.cat([sdf, feats], dim=-1)
 
 
-if __name__ == '__main__':
+class SDFRenderer(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        dist = 2.5
+        elev = 0.0
+        azim = 0.0
+        device = 'cuda:0'
+        bg_color = torch.full((1,), -1, device=device)
+
+        R, T = look_at_view_transform(dist=dist, elev=elev, azim=azim, device=device)
+        cameras = FoVPerspectiveCameras(R=R, T=T, device=device)
+        ray_tracer = RayTracing()
+
+        self.sdf_renderer = SignedDistanceFunctionRenderer(bg_color=bg_color)
+        rgb_network = RayNormalColoringNetwork(feature_vector_size=1, d_out=1)
+        rgb_network.cuda()
+        self.sdf_renderer._rgb_network = rgb_network
+        self.sdf_renderer.ray_tracer = ray_tracer
+
+        raysampler = MultinomialRaysampler(
+            min_x=-1.0,
+            max_x=1.0,
+            min_y=-1.0,
+            max_y=1.0,
+            image_width=config.render_res,
+            image_height=config.render_res,
+            n_pts_per_ray=128,
+            min_depth=-5.0,
+            max_depth=5.0
+        )
+        self.ray_bundle = raysampler(cameras)
+        self.object_mask = torch.ones(config.render_res ** 2, dtype=torch.bool, device=device)
+
+    def forward(self, sdf_model):
+        sdf_wrapper = ImplicitFunctionWrapper(ModelWrapper(sdf_model))
+        render_output = self.sdf_renderer(ray_bundle=self.ray_bundle, implicit_functions=[sdf_wrapper],
+                                          evaluation_mode=EvaluationMode.TRAINING, object_mask=self.object_mask)
+
+        out_img = render_output.features.squeeze()[:, :, 0]
+        out_img = torch.fliplr(torch.flipud(out_img))
+
+        # Normalize
+        obj_mask = out_img != -1
+        obj_pixels = out_img[obj_mask]
+        min_val = obj_pixels.min()
+        max_val = obj_pixels.max()
+
+        out_img = out_img - min_val
+        out_img = out_img / (max_val - min_val)
+        out_img = torch.where(obj_mask, out_img, 1.0)
+        return out_img
+
+
+def main():
     model = DeepSDF(use_dropout=False)
     model.load_state_dict(torch.load('model.pth'))
     model.cuda()
     model.eval()
 
-    render_mode = 'mesh'  # 'sdf' or 'mesh'
+    render_mode = 'sdf'  # 'sdf' or 'mesh'
 
     # Differentiable SDF rendering (Sphere Tracing)
     if render_mode == 'sdf':
-        image = render(model)
+        renderer = SDFRenderer()
+        image = renderer(model)
         torchvision.utils.save_image(image, f'out.png')
 
     # Render as mesh (for debugging)
@@ -158,3 +128,7 @@ if __name__ == '__main__':
         out_mesh_path = 'out.obj'
         mcubes.export_obj(vertices, triangles, out_mesh_path)
         visualize_mesh(out_mesh_path)
+
+
+if __name__ == '__main__':
+    main()

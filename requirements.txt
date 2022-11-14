@@ -8,3 +8,6 @@ blenderproc~=2.5.0
 open3d~=0.15.1
 h5py~=3.7.0
 kornia~=0.6.8
+sklearn~=0.0.post1
+clip~=1.0
+pytorch3d~=0.7.0
