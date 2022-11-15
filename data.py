@@ -1,5 +1,4 @@
 import numpy as np
-import open3d as o3d
 import torch
 import trimesh
 from sklearn.neighbors import NearestNeighbors

@@ -1,4 +1,4 @@
 .idea
 __pycache__
-out.obj
 model.pth
+test1.py

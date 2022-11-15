@@ -11,7 +11,6 @@ from pytorch3d.implicitron.models.renderer.sdf_renderer import SignedDistanceFun
 from pytorch3d.renderer import MultinomialRaysampler
 from pytorch3d.renderer.cameras import look_at_view_transform, FoVPerspectiveCameras
 
-import config
 from model import DeepSDF
 
 
@@ -55,8 +54,9 @@ class ModelWrapper(nn.Module):
 
 
 class SDFRenderer(nn.Module):
-    def __init__(self):
+    def __init__(self, render_res):
         super().__init__()
+        self.render_res = render_res
 
         dist = 2.5
         elev = 0.0
@@ -79,14 +79,14 @@ class SDFRenderer(nn.Module):
             max_x=1.0,
             min_y=-1.0,
             max_y=1.0,
-            image_width=config.render_res,
-            image_height=config.render_res,
+            image_width=render_res,
+            image_height=render_res,
             n_pts_per_ray=128,
-            min_depth=-5.0,
-            max_depth=5.0
+            min_depth=0.1,
+            max_depth=2.5
         )
         self.ray_bundle = raysampler(cameras)
-        self.object_mask = torch.ones(config.render_res ** 2, dtype=torch.bool, device=device)
+        self.object_mask = torch.ones(render_res ** 2, dtype=torch.bool, device=device)
 
     def forward(self, sdf_model):
         sdf_wrapper = ImplicitFunctionWrapper(ModelWrapper(sdf_model))
@@ -118,7 +118,7 @@ def main():
 
     # Differentiable SDF rendering (Sphere Tracing)
     if render_mode == 'sdf':
-        renderer = SDFRenderer()
+        renderer = SDFRenderer(render_res=64)
         image = renderer(model)
         torchvision.utils.save_image(image, f'out.png')
 

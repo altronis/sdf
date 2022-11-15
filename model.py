@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import utils
 
+
 # DeepSDF network
 class DeepSDF(nn.Module):
     def __init__(self, num_layers=8, hidden_dim=512, use_weight_norm=True,
